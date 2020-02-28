@@ -2,6 +2,7 @@ import torch
 from torchvision import transforms
 from torchvision.utils import save_image
 from torch.utils.serialization import load_lua
+import torch.nn
 from tqdm import tqdm
 from os import path
 from PIL import Image
@@ -15,11 +16,16 @@ opt = parser.parse_args()
 
 use_cuda = torch.cuda.device_count() > 0
 
+from model_gan import model_gan as model
+model.load_state_dict(torch.load('model_gan.pth'))
+
 cache  = load_lua( opt.model )
-model  = cache.model
+#model  = cache.model
 immean = cache.mean
 imstd  = cache.std
-model.evaluate()
+#model.evaluate()
+model = model.cuda()
+model = torch.nn.DataParallel(model)
 
 def preprocess_image(filename):
     data  = Image.open( filename ).convert('L')
@@ -41,9 +47,7 @@ if __name__ == '__main__':
             preprocess_image(path.join(root, 'sketchKeras_pured', lines[j*batch_size+i]))
             for i in range(batch_size)
         ])
-        if use_cuda:
-           pred = model.cuda().forward( data.cuda() ).float()
-        else:
-           pred = model.forward( data )
+        data = data.cuda()
+        pred = model.forward( data ).float()
         for i in range(batch_size):
             save_image(pred[i], path.join(root, 'sim_pured', lines[j*batch_size+i]))
